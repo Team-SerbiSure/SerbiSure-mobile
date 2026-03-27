@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/CommonUI';
@@ -15,7 +16,7 @@ import { REVIEWS } from '../../data/reviews';
 // Mock Data
 const MOCK_STATS = [
   { id: '1', label: 'Profile Views', value: '124' },
-  { id: '2', label: 'Rating', value: '4.9', suffix: '/5.0' },
+  { id: '2', label: 'Rating', value: '4.9', suffix: '' },
   { id: '3', label: 'Jobs Done', value: '34' },
   { id: '4', label: 'Response', value: '98%' },
 ];
@@ -48,100 +49,126 @@ export default function WorkerDashboard() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 40 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 40 }}>
       <AppModal
         visible={modal.visible}
         title={modal.title}
         message={modal.message}
         onClose={closeModal}
       />
-      <View style={styles.headerArea}>
+
+      {/* ===== HEADER BAR ===== */}
+      <View style={styles.headerBar}>
         <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hello, <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Gerald'}!</Text></Text>
-          <Text style={styles.greetingSub}>Here's what's happening today.</Text>
+          <View style={styles.logoCircle}>
+            <Text style={styles.logoText}>S</Text>
+          </View>
+          <Text style={styles.headerTitle}>SerbiSure</Text>
         </View>
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleText}>{isOnline ? 'Online & Available' : 'Offline'}</Text>
-          <Switch
-            value={isOnline}
-            onValueChange={setIsOnline}
-            trackColor={{ false: colors.cardBorder, true: colors.accent }}
-            thumbColor="#FFF"
-          />
+
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={[styles.statusPill, isOnline ? styles.statusOnline : styles.statusOffline]}
+            activeOpacity={0.7}
+            onPress={() => setIsOnline(!isOnline)}
+          >
+            <View style={[styles.statusDot, isOnline ? styles.dotOnline : styles.dotOffline]} />
+            <Text style={[styles.statusPillText, isOnline ? styles.textOnline : styles.textOffline]}>
+              {isOnline ? 'Available' : 'Offline'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.notifBtn}
+            activeOpacity={0.7}
+            onPress={() => openModal('Notifications', 'No new notifications at this time.')}
+          >
+            <Ionicons name="notifications-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll}>
-        <View style={styles.statsRow}>
-          {MOCK_STATS.map(stat => (
-            <Card key={stat.id} style={styles.statCard}>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-              <View style={styles.statValRow}>
-                <Text style={styles.statVal}>{stat.value}</Text>
-                {stat.suffix && <Text style={styles.statSuffix}>{stat.suffix}</Text>}
-              </View>
-            </Card>
-          ))}
-        </View>
+      {/* ===== GREETING SECTION ===== */}
+      <View style={styles.greetingSection}>
+        <Text style={styles.greetingLabel}>WORKER PORTAL</Text>
+        <Text style={styles.greetingName}>Hello, {user?.name?.split(' ')[0] || 'Linda'}!</Text>
+        <Text style={styles.greetingSubtitle}>Here's what's happening today.</Text>
+      </View>
+
+      {/* ===== STATS ROW (Horizontal Scroll) ===== */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll} contentContainerStyle={styles.statsScrollContent}>
+        {MOCK_STATS.map(stat => (
+          <View key={stat.id} style={styles.statCard}>
+            <View style={styles.statValRow}>
+              <Text style={styles.statVal}>{stat.value}</Text>
+              {stat.suffix ? <Text style={styles.statSuffix}>{stat.suffix}</Text> : null}
+            </View>
+            <Text style={styles.statLabel}>{stat.label}</Text>
+          </View>
+        ))}
       </ScrollView>
 
-      <View style={styles.mainGrid}>
-        <View style={styles.col}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Workflow Overview</Text>
+      {/* ===== WORKFLOW OVERVIEW ===== */}
+      <View style={styles.sectionArea}>
+        <Text style={styles.sectionTitle}>Workflow Overview</Text>
+        
+        <View style={styles.gridContainer}>
+          {/* Incoming */}
+          <View style={styles.gridCard}>
+            <Text style={styles.gridLabel}>INCOMING</Text>
+            <Text style={[styles.gridValue, { color: '#F6AD55' }]}>{incomingCount}</Text>
+            <Text style={styles.gridHint}>New requests</Text>
+            <Button title="View Requests" size="sm" type="primary" onPress={() => router.push('/(tabs)/bookings')} style={styles.gridBtn} textStyle={styles.gridBtnText} />
           </View>
-          <Text style={styles.sectionSubtitle}>
-            Track new requests, active jobs, and your applications in one place.
-          </Text>
 
-          <View style={styles.overviewGrid}>
-            <Card style={styles.overviewCard}>
-              <Text style={styles.overviewLabel}>Incoming Requests</Text>
-              <Text style={styles.overviewValue}>{incomingCount}</Text>
-              <Text style={styles.overviewHint}>Apply from the Bookings tab.</Text>
-              <Button title="View Requests" size="sm" onPress={() => router.push('/(tabs)/bookings')} />
-            </Card>
-            <Card style={styles.overviewCard}>
-              <Text style={styles.overviewLabel}>Active Jobs</Text>
-              <Text style={styles.overviewValue}>{activeJobsCount}</Text>
-              <Text style={styles.overviewHint}>Confirmed work in progress.</Text>
-              <Button title="Manage Jobs" size="sm" onPress={() => router.push('/(tabs)/bookings')} />
-            </Card>
-            <Card style={styles.overviewCard}>
-              <Text style={styles.overviewLabel}>My Applications</Text>
-              <Text style={styles.overviewValue}>{appliedRequestIds.length}</Text>
-              <Text style={styles.overviewHint}>Waiting for homeowner response.</Text>
-              <Button title="Review Applications" size="sm" onPress={() => router.push('/(tabs)/applications')} />
-            </Card>
-            <Card style={styles.overviewCard}>
-              <Text style={styles.overviewLabel}>Completed Jobs</Text>
-              <Text style={styles.overviewValue}>{completedCount}</Text>
-              <Text style={styles.overviewHint}>See full history anytime.</Text>
-              <Button title="View History" size="sm" onPress={() => router.push('/(tabs)/history')} />
-            </Card>
+          {/* Active Jobs */}
+          <View style={styles.gridCard}>
+            <Text style={styles.gridLabel}>ACTIVE JOBS</Text>
+            <Text style={[styles.gridValue, { color: '#4cd137' }]}>{activeJobsCount}</Text>
+            <Text style={styles.gridHint}>In progress</Text>
+            <Button title="Manage Jobs" size="sm" type="primary" onPress={() => router.push('/(tabs)/bookings')} style={styles.gridBtn} textStyle={styles.gridBtnText} />
+          </View>
+
+          {/* Applications */}
+          <View style={styles.gridCard}>
+            <Text style={styles.gridLabel}>APPLICATIONS</Text>
+            <Text style={[styles.gridValue, { color: colors.text }]}>{appliedRequestIds.length}</Text>
+            <Text style={styles.gridHint}>Awaiting reply</Text>
+            <Button title="Review" size="sm" type="secondary" onPress={() => router.push('/(tabs)/applications')} style={[styles.gridBtn, styles.gridBtnOutline]} textStyle={styles.gridBtnOutlineText} />
+          </View>
+
+          {/* Completed */}
+          <View style={styles.gridCard}>
+            <Text style={styles.gridLabel}>COMPLETED</Text>
+            <Text style={[styles.gridValue, { color: colors.text }]}>{completedCount}</Text>
+            <Text style={styles.gridHint}>Full history</Text>
+            <Button title="View History" size="sm" type="secondary" onPress={() => router.push('/(tabs)/history')} style={[styles.gridBtn, styles.gridBtnOutline]} textStyle={styles.gridBtnOutlineText} />
           </View>
         </View>
+      </View>
 
-        <View style={styles.col}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Reviews</Text>
-            <Text style={styles.viewLink} onPress={() => router.push('/(tabs)/reviews')}>See All</Text>
-          </View>
+      {/* ===== RECENT REVIEWS ===== */}
+      <View style={styles.sectionArea}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Recent Reviews</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(tabs)/reviews')}>
+            <Text style={styles.viewLink}>See All</Text>
+          </TouchableOpacity>
+        </View>
 
-          <Card style={styles.reviewsCard}>
-            {(REVIEWS || []).slice(0, 2).map((review, i) => (
-              <View key={review.id}>
-                <View style={styles.reviewHeader}>
-                  <Text style={styles.reviewName}>{review.name}</Text>
-                  <Text style={styles.reviewStars}>*****</Text>
-                </View>
-                <Text style={styles.reviewBody}>{review.body}</Text>
-                <Text style={styles.reviewTime}>{review.time}</Text>
-                {i < (REVIEWS || []).slice(0, 2).length - 1 && <View style={styles.reviewDivider} />}
+        {(REVIEWS || []).slice(0, 2).map((review) => (
+          <View key={review.id} style={styles.reviewCard}>
+            <View style={styles.reviewHeader}>
+              <Text style={styles.reviewName}>{review.name}</Text>
+              <View style={styles.starsRow}>
+                {Array(5).fill(0).map((_, i) => (
+                  <Text key={i} style={styles.reviewStar}>★</Text>
+                ))}
               </View>
-            ))}
-          </Card>
-        </View>
+            </View>
+            <Text style={styles.reviewBody}>{review.body}</Text>
+            <Text style={styles.reviewTime}>{review.time}</Text>
+          </View>
+        ))}
       </View>
     </ScrollView>
   );
@@ -151,176 +178,286 @@ const createStyles = (colors: typeof import('../../constants/theme').DarkColors)
   container: {
     flex: 1,
     backgroundColor: colors.bg1,
-    paddingHorizontal: 20,
   },
-  headerArea: {
-    flexDirection: 'column',
+  
+  // Header Bar
+  headerBar: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 16,
-    marginBottom: 24,
-    backgroundColor: colors.cardBg,
-    padding: 24,
-    borderRadius: 16,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    color: '#fff',
+    fontSize: 18,
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontWeight: '700',
+  },
+  headerTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontWeight: '700',
+  },
+  notifBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.cardBgSolid, // #1A1A2E
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
-  headerLeft: {
-    flex: 1,
-  },
-  greeting: {
-    color: colors.text,
-    fontSize: 26,
-    fontWeight: '600',
-    flexWrap: 'wrap',
-    letterSpacing: -0.5,
-  },
-  userName: {
-    fontWeight: '800',
-  },
-  greetingSub: {
-    color: colors.textMuted,
-    fontSize: 15,
-    marginTop: 6,
-    lineHeight: 22,
-  },
-  toggleRow: {
+  
+  // Status Pill
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  toggleText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-    marginRight: 12,
+  statusOnline: {
+    backgroundColor: 'rgba(76, 209, 55, 0.15)',
+    borderColor: 'rgba(76, 209, 55, 0.25)',
   },
-  statsScroll: {
+  statusOffline: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.cardBorder,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  dotOnline: {
+    backgroundColor: colors.success,
+  },
+  dotOffline: {
+    backgroundColor: colors.textMuted,
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontFamily: 'DMSans_600SemiBold',
+    fontWeight: '700',
+  },
+  textOnline: {
+    color: colors.success,
+  },
+  textOffline: {
+    color: colors.textMuted,
+  },
+
+  // Greeting Area
+  greetingSection: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
     marginBottom: 24,
-    overflow: 'visible',
   },
-  statsRow: {
-    flexDirection: 'row',
+  greetingLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+  },
+  greetingName: {
+    color: colors.text,
+    fontSize: 32,
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  greetingSubtitle: {
+    color: colors.textMuted,
+    fontSize: 15,
+    fontFamily: 'DMSans_400Regular',
+  },
+
+  // Stats Scroll
+  statsScroll: {
+    marginBottom: 32,
+  },
+  statsScrollContent: {
+    paddingHorizontal: 20,
     gap: 12,
   },
   statCard: {
-    width: 140,
-    padding: 20,
-    paddingVertical: 24,
-    borderRadius: 12,
-  },
-  statLabel: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 12,
+    width: 120,
+    backgroundColor: colors.cardBgSolid, // #1A1A2E
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   statValRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    marginBottom: 6,
   },
   statVal: {
     color: colors.text,
-    fontSize: 28,
+    fontSize: 24,
+    fontFamily: 'SpaceGrotesk_700Bold',
     fontWeight: '700',
   },
   statSuffix: {
     color: colors.textMuted,
     fontSize: 14,
-    marginLeft: 4,
+    fontFamily: 'DMSans_600SemiBold',
   },
-  mainGrid: {
-    flexDirection: 'column',
-    gap: 24,
+  statLabel: {
+    color: '#656580', // the slightly darker purple-gray text from mockup
+    fontSize: 12,
+    fontFamily: 'DMSans_500Medium',
   },
-  col: {
-    flex: 1,
-    marginBottom: 16,
+
+  // Sections
+  sectionArea: {
+    paddingHorizontal: 20,
+    marginBottom: 32,
   },
-  sectionHeader: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 18,
+    fontFamily: 'SpaceGrotesk_700Bold',
     fontWeight: '700',
-  },
-  sectionSubtitle: {
-    color: colors.textMuted,
-    fontSize: 13,
     marginBottom: 16,
   },
   viewLink: {
     color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontFamily: 'DMSans_500Medium',
   },
-  overviewGrid: {
-    gap: 16,
+
+  // 2x2 Grid
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+    justifyContent: 'space-between',
   },
-  overviewCard: {
-    padding: 20,
-    gap: 8,
+  gridCard: {
+    width: '47.5%',
+    backgroundColor: colors.cardBgSolid, // #1A1A2E
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'flex-start',
   },
-  overviewLabel: {
+  gridLabel: {
+    color: '#656580', // Matches the statLabel color from mockup
+    fontSize: 11,
+    fontFamily: 'DMSans_600SemiBold',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  gridValue: {
+    fontSize: 32,
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  gridHint: {
+    color: colors.accent,
+    fontSize: 12,
+    fontFamily: 'DMSans_400Regular',
+    marginBottom: 16,
+  },
+  gridBtn: {
+    width: '100%',
+    borderRadius: 10,
+    minHeight: 36,
+    paddingVertical: 8,
+  },
+  gridBtnText: {
+    fontSize: 12,
+    fontFamily: 'DMSans_600SemiBold',
+  },
+  gridBtnOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  gridBtnOutlineText: {
     color: colors.textMuted,
     fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontFamily: 'DMSans_600SemiBold',
   },
-  overviewValue: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  overviewHint: {
-    color: colors.textMuted,
-    fontSize: 13,
-    marginBottom: 6,
-  },
-  reviewsCard: {
-    padding: 24,
+
+  // Review Cards
+  reviewCard: {
+    backgroundColor: colors.cardBgSolid,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   reviewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   reviewName: {
     color: colors.text,
     fontSize: 15,
+    fontFamily: 'DMSans_600SemiBold',
     fontWeight: '600',
   },
-  reviewStars: {
-    color: '#F6AD55',
+  starsRow: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  reviewStar: {
+    color: '#F6AD55', // gold star
     fontSize: 14,
-    letterSpacing: 2,
   },
   reviewBody: {
-    color: colors.textMuted,
+    color: colors.text,
     fontSize: 14,
-    fontStyle: 'italic',
-    marginBottom: 8,
-    lineHeight: 20,
+    fontFamily: 'DMSans_400Regular',
+    lineHeight: 22,
+    marginBottom: 12,
   },
   reviewTime: {
-    color: colors.muted,
+    color: '#656580',
     fontSize: 12,
-  },
-  reviewDivider: {
-    height: 1,
-    backgroundColor: colors.cardBorder,
-    marginVertical: 16,
-  },
-  emptyCard: {
-    padding: 20,
-    marginBottom: 16,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 13,
+    fontFamily: 'DMSans_400Regular',
   },
 });
