@@ -1,17 +1,23 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as SystemUI from 'expo-system-ui';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts, SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
+import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { SettingsProvider } from '../contexts/SettingsContext';
 import { BookingsProvider } from '../contexts/BookingsContext';
 import { RequestsProvider } from '../contexts/RequestsContext';
 import { ApplicationsProvider } from '../contexts/ApplicationsContext';
+import { View } from 'react-native';
+
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -32,10 +38,8 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === 'auth';
 
     if (!user && !inAuthGroup) {
-      // Redirect to login if user is not authenticated
       router.replace('/auth/login');
     } else if (user && inAuthGroup) {
-      // Redirect to tabs if user is authenticated and trying to access auth screens
       router.replace('/(tabs)');
     }
   }, [user, loading, segments]);
@@ -75,8 +79,26 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+  const [fontsLoaded] = useFonts({
+    SpaceGrotesk_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
-    <AppThemeProvider initialDarkMode={useColorScheme() !== 'light'}>
+    <AppThemeProvider initialDarkMode={colorScheme !== 'light'}>
       <SettingsProvider>
         <RequestsProvider>
           <ApplicationsProvider>
