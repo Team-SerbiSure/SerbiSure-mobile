@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 // --- Badge Component ---
 interface BadgeProps {
     text: string;
-    type?: 'primary' | 'success' | 'pending' | 'outline';
+    type?: 'primary' | 'success' | 'pending' | 'outline' | 'warning' | 'awaiting';
 }
 
 export const Badge: React.FC<BadgeProps> = ({ text, type = 'primary' }) => {
@@ -17,15 +17,19 @@ export const Badge: React.FC<BadgeProps> = ({ text, type = 'primary' }) => {
             type === 'primary' && styles.badge_primary,
             type === 'success' && styles.badge_success,
             type === 'pending' && styles.badge_pending,
-            type === 'outline' && styles.badge_outline
+            type === 'outline' && styles.badge_outline,
+            type === 'warning' && styles.badge_warning,
+            type === 'awaiting' && styles.badge_awaiting,
         ]}>
             <Text style={[
                 styles.badgeText,
                 type === 'primary' && styles.badgeText_primary,
                 type === 'success' && styles.badgeText_success,
                 type === 'pending' && styles.badgeText_pending,
-                type === 'outline' && styles.badgeText_outline
-            ]}>{text}</Text>
+                type === 'outline' && styles.badgeText_outline,
+                type === 'warning' && styles.badgeText_warning,
+                type === 'awaiting' && styles.badgeText_awaiting,
+            ]} numberOfLines={1}>{text}</Text>
         </View>
     );
 };
@@ -52,16 +56,15 @@ const StatusIndicatorInner: React.FC<StatusProps> = ({ status }) => {
 
 const createStyles = (colors: typeof import('../constants/theme').DarkColors) => StyleSheet.create({
     badge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 20, // Match .system-status-badge
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 20,
         alignSelf: 'flex-start',
-        borderWidth: 1, // Web badge has border
-        maxWidth: 120,
+        borderWidth: 1,
     },
     badge_primary: {
-        backgroundColor: 'rgba(99, 140, 255, 0.15)',
-        borderColor: 'rgba(99, 140, 255, 0.25)',
+        backgroundColor: 'rgba(91, 79, 232, 0.15)',
+        borderColor: 'rgba(91, 79, 232, 0.25)',
     },
     badge_outline: {
         backgroundColor: 'transparent',
@@ -73,19 +76,27 @@ const createStyles = (colors: typeof import('../constants/theme').DarkColors) =>
     },
     badge_pending: {
         backgroundColor: colors.statusPending,
-        // Using accent as default fallback for pending border since statusPendingBorder isn't in Theme yet
-        borderColor: colors.accent,
+        borderColor: colors.statusPendingBorder,
+    },
+    badge_warning: {
+        backgroundColor: colors.warningBg,
+        borderColor: colors.warningBorder,
+    },
+    badge_awaiting: {
+        backgroundColor: colors.awaitingBg,
+        borderColor: colors.awaitingBorder,
     },
     badgeText: {
-        fontSize: 12, // Match .system-status-badge
-        fontWeight: '600',
-        flexShrink: 1,
+        fontSize: 11,
+        fontWeight: '700',
         textAlign: 'center',
     },
     badgeText_primary: { color: colors.accent },
     badgeText_outline: { color: colors.textMuted },
     badgeText_success: { color: colors.success },
     badgeText_pending: { color: colors.statusPendingText },
+    badgeText_warning: { color: colors.warning },
+    badgeText_awaiting: { color: colors.awaitingText },
 
     statusContainer: {
         flexDirection: 'row',
