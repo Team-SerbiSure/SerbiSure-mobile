@@ -182,7 +182,7 @@ export default function BookingsScreen() {
                     style={styles.actionBtn}
                   />
                 )}
-                {booking.status !== 'Cancelled' && (
+                {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
                   <Button
                     title="Decline"
                     type="secondary"
@@ -238,7 +238,7 @@ export default function BookingsScreen() {
                 style={styles.actionBtn}
               />
             )}
-            {booking.status !== 'Cancelled' && (
+            {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
               <Button
                 title="Cancel"
                 type="secondary"

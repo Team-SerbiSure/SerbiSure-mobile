@@ -8,10 +8,12 @@ import { Button } from '../../components/Button';
 import { Card, Input } from '../../components/CommonUI';
 import AppModal from '../../components/Modal';
 import { auth, db } from '../../constants/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function LoginScreen() {
     const { colors } = useTheme();
+    const { setManualAuthActive } = useAuth();
     const styles = createStyles(colors);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -34,29 +36,49 @@ export default function LoginScreen() {
         }
 
         setLoading(true);
+        setManualAuthActive(true); // Prevent _layout.tsx from auto-redirecting
+        
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const isWorkerSelection = role === 'Service Worker';
+            const expectedRole = isWorkerSelection ? 'worker' : 'homeowner';
 
-            // Role Validation identical to web system
-            const docRef = doc(db, "users", userCredential.user.uid);
+            // Fetch Firestore profile and validate role
+            const docRef = doc(db, 'users', userCredential.user.uid);
             const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists()) {
-                const actualRole = docSnap.data().role;
-                const expectedRole = isWorkerSelection ? "worker" : "homeowner";
-
-                if (actualRole !== expectedRole) {
-                    await auth.signOut();
-                    openModal('Role Mismatch', 'This account is not registered for the selected role.');
-                    setLoading(false);
-                    return;
-                }
+            if (!docSnap.exists()) {
+                // No profile found — block access natively and then sign out safely
+                openModal('Account Error', 'No account profile found. Please register first.');
+                await auth.signOut();
+                setLoading(false);
+                setManualAuthActive(false);
+                return;
             }
 
+            const actualRole: string = docSnap.data().role;
+
+            if (actualRole !== expectedRole) {
+                // Role mismatch — block access natively and then sign out safely
+                const registeredAs = actualRole === 'worker' ? 'Service Worker' : 'Homeowner';
+                const selectedAs = isWorkerSelection ? 'Service Worker' : 'Homeowner';
+                
+                openModal(
+                    'Wrong Role Selected',
+                    `You selected "${selectedAs}" but this account is registered as a "${registeredAs}". Please choose the correct role and try again.`
+                );
+                await auth.signOut();
+                setLoading(false);
+                setManualAuthActive(false);
+                return;
+            }
+
+            // Validation passed! Allow router to navigate explicitly
+            setManualAuthActive(false);
             router.replace('/(tabs)');
         } catch (error: any) {
             openModal('Login Failed', error.message);
+            setManualAuthActive(false);
         } finally {
             setLoading(false);
         }

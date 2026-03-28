@@ -45,7 +45,9 @@ export const BookingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          setBookings(JSON.parse(raw));
+          // Migrate any cached USD currencies to PHP before parsing
+          const migratedRaw = raw.replace(/\$(\d+)/g, '₱$1');
+          setBookings(JSON.parse(migratedRaw));
         } else {
           setBookings([]);
         }

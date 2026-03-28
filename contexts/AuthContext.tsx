@@ -7,17 +7,22 @@ interface AuthContextType {
     user: any | null;
     loading: boolean;
     isAuthenticated: boolean;
+    manualAuthActive: boolean;
+    setManualAuthActive: (active: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
-    isAuthenticated: false
+    isAuthenticated: false,
+    manualAuthActive: false,
+    setManualAuthActive: () => {}
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
+    const [manualAuthActive, setManualAuthActive] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -50,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user }}>
+        <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, manualAuthActive, setManualAuthActive }}>
             {children}
         </AuthContext.Provider>
     );

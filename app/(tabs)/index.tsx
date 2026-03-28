@@ -182,9 +182,9 @@ export default function HomeownerDashboard() {
   const activeCount = homeownerRequests.filter(r => r.requestStatus === 'Open' || r.requestStatus === 'Confirmed').length;
   const ratings = bookings.filter(b => b.reliability).map(b => b.reliability);
   const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length / 20).toFixed(1) : '4.9';
-  const estTotal = homeownerRequests.reduce((sum, r) => {
-    const val = parseFloat(r.est.replace('$', ''));
-    return sum + (isNaN(val) ? 0 : val);
+  const estTotal = user?.role === 'worker' ? 0 : homeownerRequests.reduce((acc, r) => {
+    const val = parseFloat(r.est.replace('₱', ''));
+    return acc + (isNaN(val) ? 0 : val);
   }, 0);
 
   return (
@@ -304,7 +304,7 @@ export default function HomeownerDashboard() {
           <Text style={styles.statLabel}>Avg Rating</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>${estTotal}</Text>
+          <Text style={styles.statNumber}>₱{estTotal}</Text>
           <Text style={styles.statLabel}>Est. Total</Text>
         </View>
       </View>

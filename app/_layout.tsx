@@ -24,7 +24,7 @@ export const unstable_settings = {
 };
 
 function RootLayoutNav() {
-  const { user, loading } = useAuth();
+  const { user, loading, manualAuthActive } = useAuth();
   const segments = useSegments();
   const { colors, darkMode } = useTheme();
 
@@ -33,7 +33,7 @@ function RootLayoutNav() {
   }, [colors.bg1]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || manualAuthActive) return;
 
     const inAuthGroup = segments[0] === 'auth';
 
@@ -42,7 +42,7 @@ function RootLayoutNav() {
     } else if (user && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [user, loading, segments]);
+  }, [user, loading, segments, manualAuthActive]);
 
   const CustomDarkTheme = {
     ...DarkTheme,

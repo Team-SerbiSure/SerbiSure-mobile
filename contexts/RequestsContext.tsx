@@ -30,7 +30,9 @@ export const RequestsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          setRequests(JSON.parse(raw));
+          // Migrate any cached USD currencies to PHP before parsing
+          const migratedRaw = raw.replace(/\$(\d+)/g, '₱$1');
+          setRequests(JSON.parse(migratedRaw));
         } else {
           setRequests(INITIAL_REQUESTS);
         }
