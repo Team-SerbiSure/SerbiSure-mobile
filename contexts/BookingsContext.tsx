@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { INITIAL_BOOKINGS } from '../data/mockWorker';
 import { useSettings } from './SettingsContext';
+import { bookingsAPI } from '../services/api';
 
 export type Booking = {
   id: string;
@@ -32,6 +33,7 @@ const BookingsContext = createContext<BookingsContextValue>({
   updateBookingStatus: () => {},
 });
 
+
 export const BookingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const { settings } = useSettings();
@@ -43,6 +45,27 @@ export const BookingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setBookings(INITIAL_BOOKINGS);
           return;
         }
+
+        // Try to fetch from Django first
+        try {
+            const data = await bookingsAPI.getBookings();
+            if (Array.isArray(data)) {
+                const mapped: Booking[] = data.map((b: any) => ({
+                    id: b.id.toString(),
+                    workerId: b.service.toString(),
+                    workerName: b.service_details?.provider_name || b.service_details?.name || 'Worker',
+                    skills: [b.service_details?.category || 'Service'],
+                    reliability: 90,
+                    status: b.status.charAt(0).toUpperCase() + b.status.slice(1),
+                    createdAt: new Date().toISOString(),
+                }));
+                setBookings(mapped);
+                return;
+            }
+        } catch (apiErr) {
+            console.warn("Failed to fetch bookings from API, falling back to local storage.");
+        }
+
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           // Migrate any cached USD currencies to PHP before parsing

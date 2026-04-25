@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../constants/firebase';
+import { authAPI } from '../services/api';
 
 interface AuthContextType {
     user: any | null;
@@ -25,33 +27,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [manualAuthActive, setManualAuthActive] = useState(false);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                // Fetch profile similar to App.jsx on web
-                const docRef = doc(db, "users", firebaseUser.uid);
-                const docSnap = await getDoc(docRef);
+        let unsubscribeFirebase: (() => void) | undefined;
 
-                if (docSnap.exists()) {
-                    const profileData = docSnap.data();
-                    setUser({
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        ...profileData
-                    });
-                } else {
-                    setUser({
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        role: 'homeowner' // Fallback
-                    });
+        const initAuth = async () => {
+            const token = await AsyncStorage.getItem('serbisure_token');
+            if (token) {
+                try {
+                    const djangoData = await authAPI.getProfile();
+                    const djangoUser = djangoData.data || djangoData;
+                    if (djangoUser && djangoUser.email) {
+                        setUser({
+                            uid: djangoUser.id,
+                            email: djangoUser.email,
+                            full_name: djangoUser.full_name,
+                            role: djangoUser.role === 'service_worker' ? 'worker' : 'homeowner',
+                        });
+                        setLoading(false);
+                        return; // Found Django session
+                    }
+                } catch (err) {
+                    console.warn("Django session restoration failed:", err);
+                    await AsyncStorage.removeItem('serbisure_token');
                 }
-            } else {
-                setUser(null);
             }
-            setLoading(false);
-        });
 
-        return unsubscribe;
+            unsubscribeFirebase = onAuthStateChanged(auth, async (firebaseUser) => {
+                if (firebaseUser) {
+                    try {
+                        const docRef = doc(db, "users", firebaseUser.uid);
+                        const docSnap = await getDoc(docRef);
+
+                        if (docSnap.exists()) {
+                            const profileData = docSnap.data();
+                            setUser({
+                                uid: firebaseUser.uid,
+                                email: firebaseUser.email,
+                                ...profileData
+                            });
+                        } else {
+                            setUser({
+                                uid: firebaseUser.uid,
+                                email: firebaseUser.email,
+                                role: 'homeowner'
+                            });
+                        }
+                    } catch (err) {
+                        console.warn("Firestore profile fetch failed (likely permission issues):", err);
+                        // Fallback to basic info if DB is locked
+                        setUser({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            role: 'homeowner'
+                        });
+                    }
+                } else {
+                    setUser(null);
+                }
+                setLoading(false);
+            });
+        };
+
+        initAuth();
+
+        return () => {
+            if (unsubscribeFirebase) unsubscribeFirebase();
+        };
     }, []);
 
     return (

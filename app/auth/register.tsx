@@ -9,6 +9,7 @@ import { Card, Input } from '../../components/CommonUI';
 import AppModal from '../../components/Modal';
 import { auth, db } from '../../constants/firebase';
 import { useTheme } from '../../contexts/ThemeContext';
+import { authAPI } from '../../services/api';
 
 export default function RegisterScreen() {
     const { colors } = useTheme();
@@ -37,6 +38,7 @@ export default function RegisterScreen() {
 
         setLoading(true);
         try {
+            // 1. Firebase Auth (Legacy/OAuth support)
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(userCredential.user, { displayName: name });
 
@@ -50,6 +52,18 @@ export default function RegisterScreen() {
             };
 
             await setDoc(doc(db, "users", userCredential.user.uid), profileData);
+
+            // 2. Django Backend Sync (Task 5 Requirement)
+            try {
+                await authAPI.register({
+                    email,
+                    password,
+                    full_name: name,
+                    role: isWorker ? 'service_worker' : 'homeowner'
+                });
+            } catch (apiErr) {
+                console.warn("Backend registration sync failed. check server connectivity.");
+            }
 
             openModal('Success', `Welcome to SerbiSure, ${name}!`);
             router.replace('/(tabs)');
@@ -145,9 +159,7 @@ export default function RegisterScreen() {
 
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>Already have an account? </Text>
-                        <Link href="/auth/login" asChild>
-                            <Text style={styles.linkText}>Log in here</Text>
-                        </Link>
+                        <Text style={styles.linkText} onPress={() => router.push('/auth/login')}>Log in here</Text>
                     </View>
                 </Card>
             </ScrollView>
@@ -155,7 +167,7 @@ export default function RegisterScreen() {
     );
 }
 
-const createStyles = (colors: typeof import('../../constants/theme').DarkColors) => StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.bg1,

@@ -9,7 +9,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBookings } from '../../contexts/BookingsContext';
 import { useRequests } from '../../contexts/RequestsContext';
-import { WORKERS } from '../../data/workers';
+import { servicesAPI, bookingsAPI } from '../../services/api';
+import { WORKERS as MOCK_WORKERS } from '../../data/workers';
 
 export default function ServicesScreen() {
     const { user } = useAuth();
@@ -18,33 +19,121 @@ export default function ServicesScreen() {
     const params = useLocalSearchParams<{ book?: string }>();
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [bookingWorker, setBookingWorker] = useState<typeof WORKERS[0] | null>(null);
+    const [workers, setWorkers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [bookingWorker, setBookingWorker] = useState<any | null>(null);
     const [infoModal, setInfoModal] = useState({ visible: false, title: '', message: '' });
     const { bookings, addBooking } = useBookings();
     const { addRequest } = useRequests();
     const insets = useSafeAreaInsets();
 
-    const filteredWorkers = useMemo(() => {
-        const matchCategory = (worker: typeof WORKERS[0]) =>
-            selectedCategory === 'All' || worker.skills.some(skill => skill.toLowerCase().includes(selectedCategory.toLowerCase()));
-        const matchSearch = (worker: typeof WORKERS[0]) =>
-            worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            worker.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
-        return WORKERS.filter(worker => matchCategory(worker) && matchSearch(worker));
-    }, [selectedCategory, searchQuery]);
+    const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+    const [newService, setNewService] = useState({
+        name: '',
+        category: 'Cleaning',
+        price: '',
+        description: ''
+    });
+
+    const fetchServices = async () => {
+        setLoading(true);
+        try {
+            const data = await servicesAPI.getServices();
+            if (Array.isArray(data)) {
+                // Map Django Services to Mobile Worker structure
+                const mapped = data.map((s: any) => ({
+                    id: s.id.toString(),
+                    provider_id: s.provider?.id || s.provider,
+                    name: s.provider_name || s.name,
+                    skills: [s.category],
+                    reliability: 90, // Placeholder
+                    verified: true,
+                    tesda: true,
+                    description: s.description,
+                    price: s.price
+                }));
+                setWorkers(mapped);
+            } else {
+                setWorkers(MOCK_WORKERS);
+            }
+        } catch (err) {
+            console.warn("Failed to fetch services from Django, using mock data.");
+            setWorkers(MOCK_WORKERS);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        if (params.book) {
-            const worker = WORKERS.find(w => w.id === params.book);
+        fetchServices();
+    }, []);
+
+    const filteredWorkers = useMemo(() => {
+        // If user is a worker, show only their own services
+        if (user?.role === 'worker') {
+            return workers.filter(w => w.provider_id === user.uid || w.provider_id === parseInt(user.uid as string));
+        }
+
+        const matchCategory = (worker: any) =>
+            selectedCategory === 'All' || worker.skills.some((skill: string) => skill.toLowerCase().includes(selectedCategory.toLowerCase()));
+        const matchSearch = (worker: any) =>
+            worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            worker.skills.some((skill: string) => skill.toLowerCase().includes(searchQuery.toLowerCase()));
+        return workers.filter(worker => matchCategory(worker) && matchSearch(worker));
+    }, [selectedCategory, searchQuery, workers, user]);
+
+    useEffect(() => {
+        if (params.book && workers.length > 0) {
+            const worker = workers.find(w => w.id === params.book);
             if (worker) {
                 setBookingWorker(worker);
             }
         }
-    }, [params.book]);
+    }, [params.book, workers]);
 
-    const handleBookService = (workerId: string, workerName: string, skills: string[], reliability: number) => {
+    const handlePostService = async () => {
+        if (!newService.name || !newService.price || !newService.description) {
+            setInfoModal({ visible: true, title: 'Error', message: 'Please fill in all fields.' });
+            return;
+        }
+
+        try {
+            await servicesAPI.createService(newService);
+            setInfoModal({ visible: true, title: 'Success', message: 'Service posted successfully!' });
+            setIsPostModalOpen(false);
+            setNewService({ name: '', category: 'Cleaning', price: '', description: '' });
+            fetchServices();
+        } catch (err) {
+            setInfoModal({ visible: true, title: 'Error', message: 'Failed to post service.' });
+        }
+    };
+
+    const handleDeleteService = async (id: string) => {
+        try {
+            await servicesAPI.deleteService(id);
+            setInfoModal({ visible: true, title: 'Deleted', message: 'Service removed successfully.' });
+            fetchServices();
+        } catch (err) {
+            setInfoModal({ visible: true, title: 'Error', message: 'Failed to delete service.' });
+        }
+    };
+
+    const handleBookService = async (workerId: string, workerName: string, skills: string[], reliability: number) => {
         const alreadyBooked = bookings.some(b => b.workerId === workerId && b.status !== 'Cancelled');
         if (alreadyBooked) return;
+
+        // 1. Sync with Backend (Task 5/7 Requirement)
+        try {
+            await bookingsAPI.createBooking({
+                service: parseInt(workerId),
+                scheduled_date: new Date().toISOString().split('T')[0], // Today's date
+            });
+        } catch (apiErr) {
+            console.warn("Backend booking failed. Ensure you are logged in correctly.");
+            setInfoModal({ visible: true, title: 'Network Error', message: 'Could not sync booking with the server.' });
+            return;
+        }
+
         const requestId = `req-${Date.now()}`;
         addRequest({
             id: requestId,
@@ -70,61 +159,51 @@ export default function ServicesScreen() {
             status: 'Confirmed',
         });
         setBookingWorker(null);
-        setInfoModal({ visible: true, title: 'Booking Confirmed', message: `Your booking with ${workerName} is confirmed and appears in Active Requests.` });
+        setInfoModal({ visible: true, title: 'Booking Confirmed', message: `Your booking with ${workerName} is confirmed and synced with the backend.` });
         router.push('/(tabs)/bookings');
     };
 
-    if (user?.role === 'worker') {
-        return <Redirect href="/(tabs)/explore" />;
-    }
-
-    const renderWorker = (item: typeof WORKERS[0]) => (
-        <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/worker/[id]', params: { id: item.id } })} activeOpacity={0.8}>
-            <Card style={styles.workerCard}>
-                <View style={styles.workerHeader}>
-                    <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>{item.name[0]}</Text>
-                    </View>
-                    <View style={styles.workerInfo}>
-                        <Text style={styles.workerName}>{item.name}</Text>
-                        <View style={styles.verifiedRow}>
-                            {item.verified ? (
-                                <Text style={styles.verifiedText}>Verified</Text>
-                            ) : (
-                                <Text style={styles.pendingText}>Pending</Text>
-                            )}
-                        </View>
-                    </View>
-                    <View style={styles.reliabilityBadge}>
-                        <Text style={styles.reliabilityScore}>{item.reliability}%</Text>
-                        <Text style={styles.reliabilityLabel}>RELIABILITY</Text>
+    const renderWorker = (item: any) => (
+        <Card style={styles.workerCard}>
+            <View style={styles.workerHeader}>
+                <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarText}>{item.name[0]}</Text>
+                </View>
+                <View style={styles.workerInfo}>
+                    <Text style={styles.workerName}>{item.name}</Text>
+                    <View style={styles.verifiedRow}>
+                        <Text style={styles.verifiedText}>₱{item.price}</Text>
                     </View>
                 </View>
+            </View>
 
-                <View style={styles.skillsRow}>
-                    {item.skills.map(skill => (
-                        <View key={skill} style={styles.skillBadge}>
-                            <Text style={styles.skillText}>{skill}</Text>
-                        </View>
-                    ))}
-                </View>
+            <View style={styles.skillsRow}>
+                {item.skills.map((skill: string) => (
+                    <View key={skill} style={styles.skillBadge}>
+                        <Text style={styles.skillText}>{skill}</Text>
+                    </View>
+                ))}
+            </View>
 
-                <View style={styles.tesdaRow}>
-                    {item.tesda ? (
-                        <Text style={styles.tesdaText}>TESDA Certified</Text>
-                    ) : (
-                        <Text style={styles.noTesdaText}>No TESDA Certificate</Text>
-                    )}
-                </View>
+            <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 16 }}>{item.description}</Text>
 
+            {user?.role === 'worker' ? (
+                <Button
+                    title="Delete Service"
+                    type="outline"
+                    onPress={() => handleDeleteService(item.id)}
+                    style={{ borderColor: '#ff4757' }}
+                    textStyle={{ color: '#ff4757' }}
+                />
+            ) : (
                 <Button
                     title={bookings.some(b => b.workerId === item.id && b.status !== 'Cancelled') ? 'Booked' : 'Book Service'}
                     onPress={() => setBookingWorker(item)}
                     style={styles.bookButton}
                     disabled={bookings.some(b => b.workerId === item.id && b.status !== 'Cancelled')}
                 />
-            </Card>
-        </TouchableOpacity>
+            )}
+        </Card>
     );
 
     return (
@@ -138,6 +217,45 @@ export default function ServicesScreen() {
                 message={infoModal.message}
                 onClose={() => setInfoModal(prev => ({ ...prev, visible: false }))}
             />
+            
+            <AppModal
+                visible={isPostModalOpen}
+                title="Post New Service"
+                onClose={() => setIsPostModalOpen(false)}
+                actions={[
+                    { label: 'Post Now', type: 'primary', onPress: handlePostService },
+                    { label: 'Cancel', type: 'secondary' },
+                ]}
+            >
+                <View style={styles.modalBlock}>
+                    <TextInput
+                        style={styles.searchBar}
+                        placeholder="Service Title"
+                        placeholderTextColor={colors.textMuted}
+                        value={newService.name}
+                        onChangeText={text => setNewService({...newService, name: text})}
+                    />
+                    <View style={{ height: 10 }} />
+                    <TextInput
+                        style={styles.searchBar}
+                        placeholder="Price (₱)"
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="numeric"
+                        value={newService.price}
+                        onChangeText={text => setNewService({...newService, price: text})}
+                    />
+                    <View style={{ height: 10 }} />
+                    <TextInput
+                        style={[styles.searchBar, { height: 100 }]}
+                        placeholder="Description"
+                        placeholderTextColor={colors.textMuted}
+                        multiline
+                        value={newService.description}
+                        onChangeText={text => setNewService({...newService, description: text})}
+                    />
+                </View>
+            </AppModal>
+
             <AppModal
                 visible={!!bookingWorker}
                 title="Confirm Booking"
@@ -158,36 +276,48 @@ export default function ServicesScreen() {
             </AppModal>
 
             <View style={styles.header}>
-                <Text style={styles.title}>Browse Services</Text>
-                <Text style={styles.subtitle}>Find and book verified service providers for your home</Text>
+                <Text style={styles.title}>{user?.role === 'worker' ? 'My Services' : 'Browse Services'}</Text>
+                <Text style={styles.subtitle}>
+                    {user?.role === 'worker' 
+                        ? 'Manage the skills and services you offer to homeowners' 
+                        : 'Find and book verified service providers for your home'}
+                </Text>
                 <View style={styles.headerActions}>
-                    <Button title="View Bookings" type="outline" onPress={() => router.push('/(tabs)/bookings')} />
+                    {user?.role === 'worker' ? (
+                        <Button title="+ Post New Service" onPress={() => setIsPostModalOpen(true)} />
+                    ) : (
+                        <Button title="View Bookings" type="outline" onPress={() => router.push('/(tabs)/bookings')} />
+                    )}
                 </View>
             </View>
 
-            <View style={styles.searchSection}>
-                <TextInput
-                    style={styles.searchBar}
-                    placeholder="Search by name or skill..."
-                    placeholderTextColor={colors.textMuted}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                />
-            </View>
+            {user?.role !== 'worker' && (
+                <>
+                    <View style={styles.searchSection}>
+                        <TextInput
+                            style={styles.searchBar}
+                            placeholder="Search by name or skill..."
+                            placeholderTextColor={colors.textMuted}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </View>
 
-            <View style={styles.section}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categories}>
-                    {['All', 'Plumbing', 'Electrical', 'Cleaning', 'Carpentry', 'Babysitting', 'Pet Care', 'General Help'].map(cat => (
-                        <TouchableOpacity
-                            key={cat}
-                            style={[styles.categoryBadge, selectedCategory === cat && styles.categoryActive]}
-                            onPress={() => setSelectedCategory(cat)}
-                        >
-                            <Text style={[styles.categoryText, selectedCategory === cat && styles.categoryActiveText]}>{cat}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
+                    <View style={styles.section}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categories}>
+                            {['All', 'Plumbing', 'Electrical', 'Cleaning', 'Carpentry', 'Babysitting', 'Pet Care', 'General Help'].map(cat => (
+                                <TouchableOpacity
+                                    key={cat}
+                                    style={[styles.categoryBadge, selectedCategory === cat && styles.categoryActive]}
+                                    onPress={() => setSelectedCategory(cat)}
+                                >
+                                    <Text style={[styles.categoryText, selectedCategory === cat && styles.categoryActiveText]}>{cat}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </>
+            )}
 
             <View style={styles.gridSection}>
                 {filteredWorkers.length > 0 ? (
@@ -197,7 +327,11 @@ export default function ServicesScreen() {
                         </View>
                     ))
                 ) : (
-                    <Text style={styles.noResults}>No workers found for '{selectedCategory}'.</Text>
+                    <Text style={styles.noResults}>
+                        {user?.role === 'worker' 
+                            ? "You haven't posted any services yet. Click '+ Post New Service' to get started!" 
+                            : `No workers found for '${selectedCategory}'.`}
+                    </Text>
                 )}
             </View>
         </ScrollView>
